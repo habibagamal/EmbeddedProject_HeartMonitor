@@ -23,8 +23,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdio.h"
+#include <stdio.h>
 #include "string.h"
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,7 +69,9 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN 0 */
 volatile uint16_t adc_buffer[1] = {0};
 uint16_t ADCValue;
-char command [6];
+#define COMMAND_SIZE 6
+char command [COMMAND_SIZE];
+
 
 uint8_t hexToAscii(uint8_t n) //4-bit hex value converted to an ascii character 
 {   
@@ -115,7 +118,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
+/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -128,6 +131,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 			HAL_UART_Receive_IT(&huart1,(uint8_t*) &command, sizeof(command));
+
 
 	}
   /* USER CODE END 3 */
@@ -369,66 +373,100 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+////////////////////////////////////////
+// called when ADC conversion is complete
+////////////////////////////////////////
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
   /* This is called after the conversion is completed */
 	UNUSED(hadc);
+	
+	// read ADC converted value
 	ADCValue = HAL_ADC_GetValue(&hadc1);
 	
+	//convert to string and transmit over UART
 	char buffer[10];
 	int n = sprintf (buffer, "%d", ADCValue);
 	buffer[n] = '\r';
 	buffer[n+1] = '\n';
-
 	for (int i = 0; i < (n+2); i++){
 		HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
 	}
 }
-
+////////////////////////////////////////
+// Called whenever UART receive IT is done
+////////////////////////////////////////
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+	if (huart->Instance == USART1){
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+		HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
+		
+		//command to start collecting 1 min worth of data
+		if(command[0] == 's' && command[1] == 't' && command[2] == 'a' && command[3] == 'r' && command[4] == 't'){	
+			//start timer 3 that is sampling trigger for ADC	
+			HAL_TIM_Base_Start(&htim3);
+			//start timer 3 that counts 1 minute
+			HAL_TIM_Base_Start_IT(&htim2);
+			//start ADC
+			HAL_ADC_Start_IT(&hadc1);	
+		} 
+		//command to set sampling rate
+		else if (command[0] == 'f' && command[1] == '='){
+			//Get numerical value of freuqncy as string
+			char freq[COMMAND_SIZE - 1]; 
+			for (int i = 0; i < (COMMAND_SIZE - 2); i++){
+				freq[i] = command[2+i];
+			}
+			freq[COMMAND_SIZE - 2] = '\0';
+			
+			//convert the frequency to integer
+			const char * temp = freq; 
+			int f;
+			f = atoi(temp);
+			
+			//compute the time
+			float time = 1000.0 / f;
+		
+			//change the value of period register to time
+			__HAL_TIM_SET_AUTORELOAD(&htim3, time);
+		} 
+		// command to get bpm
+		else if (command[0] == 'b' && command[1] == 'p' && command[2] == 'm'){
+				//compute and UART transmit BPM
+				char buffer[8] = "report\r\n";
+				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
+		}
+	}
+}
+////////////////////////////////////////
+// Called when every UART byte is received
+////////////////////////////////////////
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
-	if(command[0] == 's'){
-		if (command[1] == 't' && command[2] == 'a' && command[3] == 'r' && command[4] == 't'){
-				HAL_TIM_Base_Start(&htim3);
-				HAL_TIM_Base_Start_IT(&htim2);
-				HAL_ADC_Start_IT(&hadc1);	
-		} else if (command[1] == '='){
-				char * freq; 
-				for (int i = 0; (i < 4) ; i++){
-						freq[i] = command[2+i];
-				}
-				int f;
-				sscanf(freq, "%d", &f);
-				float time = 1000.0 / f;
-				__HAL_TIM_SET_AUTORELOAD(&htim2, time);
-				HAL_TIM_Base_Start(&htim3);
-				HAL_TIM_Base_Start_IT(&htim2);
-				HAL_ADC_Start_IT(&hadc1);	
-		}
-	} else if (command[0] == 'r' && command[1] == 'e' && command[2] == 'p'
-							&& command[3] == 'o' && command[4] == 'r' && command[5] == 't'){
-			//compute and UART transmit BPM
-			char buffer[8] = "report\r\n";
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-			//HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
-	}
 
-	
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
 }
-
+////////////////////////////////////////
+// Called when timer period has elapsed
+////////////////////////////////////////
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* Prevent unused argument(s) compilation warning */
   UNUSED(htim);
+	
+	// 1 min elapsed for timer 2
 	if (htim->Instance == TIM2){
+		// toggle LED
 		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+		// Stop ADC
 		HAL_ADC_Stop(&hadc1);
+		// Stop timer 2
 		HAL_TIM_Base_Stop(&htim2);
+		// Stop timer 3
 		HAL_TIM_Base_Stop(&htim3);
 	}
 }
