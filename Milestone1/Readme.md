@@ -11,6 +11,6 @@ python term.py
     - To collect 1 minute worth of data: "startt"
     - To report bpm: "bpmmmm" (microcontroller will UART trasnmit "report" to indicate the receipt of the command)
     - To change the sampling frequency: "f=xxxx"
-To-do: 
+- To-do: 
 - Auto-concatenate white spaces to short commands like "start" and "bpm" 
 - Caculate and report bpm
