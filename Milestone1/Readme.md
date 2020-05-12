@@ -7,7 +7,7 @@ Run these command at project root
 cd Milestone1/
 python term.py
 ```
--Supported commands: 
+- Supported commands: 
     - To collect 1 minute worth of data: "startt"
     - To report bpm: "bpmmmm" (microcontroller will UART trasnmit "report" to indicate the receipt of the command)
     - To change the sampling frequency: "f=xxxx"
