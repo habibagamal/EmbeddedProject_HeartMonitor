@@ -14,3 +14,4 @@ python term.py
 - To-do: 
     - Auto-concatenate white spaces to short commands like "start" and "bpm" 
     - Caculate and report bpm
+- The C code is in Milestone1/KEIL_CubeMX_Projects/Src
