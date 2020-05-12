@@ -12,5 +12,5 @@ python term.py
     - To report bpm: "bpmmmm" (microcontroller will UART trasnmit "report" to indicate the receipt of the command)
     - To change the sampling frequency: "f=xxxx"
 - To-do: 
-- Auto-concatenate white spaces to short commands like "start" and "bpm" 
-- Caculate and report bpm
+    - Auto-concatenate white spaces to short commands like "start" and "bpm" 
+    - Caculate and report bpm
