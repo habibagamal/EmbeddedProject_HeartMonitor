@@ -71,17 +71,6 @@ volatile uint16_t adc_buffer[1] = {0};
 uint16_t ADCValue;
 #define COMMAND_SIZE 6
 char command [COMMAND_SIZE];
-
-
-uint8_t hexToAscii(uint8_t n) //4-bit hex value converted to an ascii character 
-{   
-	if (n>=0 && n<=9) 
-		n = n + '0';   
-	else   
-		n = n - 10 + 'A'; 
- 
-  return n; 
-} 
 /* USER CODE END 0 */
 
 /**
@@ -289,7 +278,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 8000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 3;
+  htim3.Init.Period = 6;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -398,18 +387,26 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	if (huart->Instance == USART1){
 		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-		HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
-		
+		//////////////////
 		//command to start collecting 1 min worth of data
+		//////////////////
 		if(command[0] == 's' && command[1] == 't' && command[2] == 'a' && command[3] == 'r' && command[4] == 't'){	
+			
+			HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
+			char endLine[2] = "\r\n";
+			HAL_UART_Transmit(&huart1,(uint8_t *) endLine, sizeof(endLine), 100);
+		
 			//start timer 3 that is sampling trigger for ADC	
 			HAL_TIM_Base_Start(&htim3);
 			//start timer 3 that counts 1 minute
 			HAL_TIM_Base_Start_IT(&htim2);
 			//start ADC
-			HAL_ADC_Start_IT(&hadc1);	
+			HAL_ADC_Start_IT(&hadc1);
+
 		} 
+		//////////////////
 		//command to set sampling rate
+		//////////////////
 		else if (command[0] == 'f' && command[1] == '='){
 			//Get numerical value of freuqncy as string
 			char freq[COMMAND_SIZE - 1]; 
@@ -417,23 +414,30 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 				freq[i] = command[2+i];
 			}
 			freq[COMMAND_SIZE - 2] = '\0';
-			
 			//convert the frequency to integer
 			const char * temp = freq; 
 			int f;
 			f = atoi(temp);
-			
 			//compute the time
 			float time = 1000.0 / f;
-		
 			//change the value of period register to time
 			__HAL_TIM_SET_AUTORELOAD(&htim3, time);
+			
+			HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
+			char endLine[2] = "\r\n";
+			HAL_UART_Transmit(&huart1,(uint8_t *) endLine, sizeof(endLine), 100);
 		} 
+		//////////////////
 		// command to get bpm
+		//////////////////
 		else if (command[0] == 'b' && command[1] == 'p' && command[2] == 'm'){
 				//compute and UART transmit BPM
 				char buffer[8] = "report\r\n";
 				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
+		} 
+		else {
+			char buffer[12] = "no command\r\n";
+			HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
 		}
 	}
 }
