@@ -83,7 +83,7 @@ printing.start()
 # ## Plotting
 # ##############################
 while True:
-    if(arduinoData.isdigit() and off == 0):
+    if((arduinoData.isdigit()) and (off == 0)):
         x.append(dt.datetime.now().strftime('%H:%M:%S.%f'))
         y.append(int(arduinoData))
 
