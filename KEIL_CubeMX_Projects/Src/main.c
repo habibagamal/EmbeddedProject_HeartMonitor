@@ -71,6 +71,32 @@ volatile uint16_t adc_buffer[1] = {0};
 uint16_t ADCValue;
 #define COMMAND_SIZE 6
 char command [COMMAND_SIZE];
+//int ECG1 = 0, ECG2 = 0;
+//int numberOFSamples = 0;
+//int first = 0;
+//#define UpperThreshold 2000
+//#define LowerThreshold 1500
+//int BPMTiming = 0;
+//int BeatComplete = 0;
+//int BPM = 0;
+//int LastTime = 0;
+//int lastADC = 0;
+//int BPM;
+//int numOfPeaks;
+int lastADC = 0;
+int secondLastADC = 0;
+int lastTime = 0;
+int lastPeekTime = 0;
+int BPM;
+int time1 = 0;
+int time2 = 0;
+int BPMcalc = 0;
+#define minRR 600
+#define maxRR 1200
+#define maxThreshold 3800
+
+int lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
+int detectEdge(int thisEdge);
 /* USER CODE END 0 */
 
 /**
@@ -107,7 +133,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -318,7 +344,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 402000;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -349,7 +375,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+//  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PB12 */
   GPIO_InitStruct.Pin = GPIO_PIN_12;
@@ -361,16 +387,113 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+////////////////////////////////////////
+// called when ADC conversion is complete
+////////////////////////////////////////
+int detectEdge(int thisEdge){
+	if (thisEdge > maxThreshold && thisEdge > lastEdge2 && lastEdge2 > lastEdge3 && lastEdge3 > lastEdge4){
+		int currTime = __HAL_TIM_GET_COUNTER(& htim2);
+		if((currTime - lastPeekTime) >= minRR){
+			if (time1 == 0)
+				time1 = currTime;
+			else if ((currTime - time1) > maxRR){
+				time1 = currTime;
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+				
+//								char buffer[10];
+//						int n = sprintf (buffer, "%d", time1);
+//						buffer[n] = '\r';
+//						buffer[n+1] = '\n';
+//						for (int i = 0; i < (n+2); i++){
+//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
+//						}
+			}
+			else if (time2 == 0){
+				time2 = currTime;
+				BPMcalc = 1;				
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+
+				
+//				char buffer[10];
+//						int n = sprintf (buffer, "%d", time2);
+//						buffer[n] = '\r';
+//						buffer[n+1] = '\n';
+//						for (int i = 0; i < (n+2); i++){
+//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
+//						}
+			}
+			lastPeekTime = currTime;
+			return  1;
+		}
+	}
+	return 0;
+}
 
 ////////////////////////////////////////
 // called when ADC conversion is complete
 ////////////////////////////////////////
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
   /* This is called after the conversion is completed */
-	UNUSED(hadc);
+	UNUSED(hadc); 
 	
 	// read ADC converted value
 	ADCValue = HAL_ADC_GetValue(&hadc1);
+	
+	if (BPMcalc == 0){
+		if (__HAL_TIM_GET_COUNTER(&htim2) >= 12000){
+			detectEdge(ADCValue);
+//			int newTime = detectEdge(ADCValue);
+//			if (newTime != 0){
+//				if (time1 == 0){
+//					time1 = newTime;
+//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+//						
+//						char buffer[10];
+//						int n = sprintf (buffer, "%d", time1);
+//						buffer[n] = '\r';
+//						buffer[n+1] = '\n';
+//						for (int i = 0; i < (n+2); i++){
+//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
+//						}
+//				} else if (time2 == 0){
+//					time2 = newTime;
+//					BPMcalc = 1;
+//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+//					
+//						char buffer[10];
+//						int n = sprintf (buffer, "%d", time2);
+//						buffer[n] = '\r';
+//						buffer[n+1] = '\n';
+//						for (int i = 0; i < (n+2); i++){
+//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
+//						}
+//				}
+//			}
+		}
+		//lastTime = __HAL_TIM_GET_COUNTER(&htim2);
+		lastEdge4 = 0;
+		lastEdge3 = lastEdge2;
+		lastEdge2 = ADCValue;
+	}
+	
+//	if (BPMcalc == 0){
+//		if (lastTime >= 30000){
+//			if (lastADC > 3800 && ADCValue > 3800 && secondLastADC > 3800 && lastADC < ADCValue && lastADC > secondLastADC){
+//				if (time1 == 0){
+//					time1 = lastTime;
+//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+//					}
+//				else if (time2 == 0 && ((lastTime - time1) >= 600)){
+//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+//					time2 = lastTime;
+//					BPMcalc = 1;
+//				}
+//			}
+//		}
+//		secondLastADC = lastADC;
+//		lastADC = ADCValue;
+//		lastTime = __HAL_TIM_GET_COUNTER(& htim2);
+//	}
 	
 	//convert to string and transmit over UART
 	char buffer[10];
@@ -386,12 +509,18 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 ////////////////////////////////////////
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	if (huart->Instance == USART1){
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+//		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 		//////////////////
 		//command to start collecting 1 min worth of data
 		//////////////////
 		if(command[0] == 's' && command[1] == 't' && command[2] == 'a' && command[3] == 'r' && command[4] == 't'){	
-			
+			lastADC = 0;
+			BPMcalc = 0;
+			secondLastADC = 0;
+			lastTime = 0;
+			time1 = 0;
+			time2 = 0;
+			lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 			HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
 			char endLine[2] = "\r\n";
 			HAL_UART_Transmit(&huart1,(uint8_t *) endLine, sizeof(endLine), 100);
@@ -432,8 +561,34 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		//////////////////
 		else if (command[0] == 'b' && command[1] == 'p' && command[2] == 'm'){
 				//compute and UART transmit BPM
-				char buffer[8] = "report\r\n";
-				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
+//				char buffer[9] = "reportt\r\n";
+//				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
+//				int dt = abs(ECG2 - ECG1);
+//				int bpm;
+//				if (dt != 0)
+//					bpm = (int)(60/((float)(dt)/1000));
+////					bpm = numberOFSamples * 60000 / dt;
+//				else 
+//					bpm = 0; 
+				
+//				float numberOfSquares = (time2 - time1) / 200.0;
+//			
+//				float BPM = 300 / numberOfSquares;
+				float BPM = 60 / ((time2 - time1)/1000.0);
+			
+				char c[4] = "bpm=";
+				HAL_UART_Transmit(&huart1,(uint8_t *) c, sizeof(c), 100);
+				
+				char buffer [32]; 
+				int n = sprintf (buffer, "%f", BPM);
+				buffer[n] = '\r';
+				buffer[n+1] = '\n';
+				for (int i = 0; i < (n+2); i++){
+					HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
+				}
+				
+//				n = sprintf (buffer, "%s", "report\r\n");
+//				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
 		} 
 		else {
 			char buffer[12] = "no command\r\n";
@@ -465,7 +620,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	// 1 min elapsed for timer 2
 	if (htim->Instance == TIM2){
 		// toggle LED
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+//		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 		// Stop ADC
 		HAL_ADC_Stop(&hadc1);
 		// Stop timer 2
