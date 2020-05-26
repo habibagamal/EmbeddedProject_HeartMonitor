@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import datetime as dt
 
 plt.ion()
-#fig = plt.figure()
 i=0
 x=list()
 y=list()
@@ -18,9 +17,9 @@ lock = threading.Lock()
 arduinoData = ""
 off = 0
 # ##############################
-# ## Producer thread
+# ## thread reads command line input and sends data to microcontroller
 # ##############################
-class producerThread (threading.Thread):
+class readThread (threading.Thread):
     def run (self):
         global command
         global x
@@ -32,10 +31,6 @@ class producerThread (threading.Thread):
                 x = list()
                 y = list()
                 off = 1
-                # if (command == "start"):
-                #     x = list()
-                #     y = list()
-                #     off = 1
 
                 while (len(command) < 6):
                     command += 't'
@@ -49,8 +44,8 @@ baud_rate = input("Enter baud rate : ")
 
 ser = serial.Serial(port_name, baudrate = baud_rate, timeout=1000000000)
 
-producer = producerThread()
-producer.start()
+reader = readThread()
+reader.start()
 
 # ##############################
 # ## Plotting

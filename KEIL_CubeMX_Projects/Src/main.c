@@ -26,6 +26,11 @@
 #include <stdio.h>
 #include "string.h"
 #include <stdlib.h>
+
+#define COMMAND_SIZE 6
+#define minRR 600
+#define maxRR 1200
+#define maxThreshold 3800
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -69,18 +74,12 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN 0 */
 volatile uint16_t adc_buffer[1] = {0};
 uint16_t ADCValue;
-#define COMMAND_SIZE 6
 char command [COMMAND_SIZE];
-
 int lastPeekTime = 0;
 int BPM;
 int time1 = 0;
 int time2 = 0;
 int BPMcalc = 0;
-#define minRR 600
-#define maxRR 1200
-#define maxThreshold 3800
-
 int lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 int detectEdge(int thisEdge);
 /* USER CODE END 0 */
@@ -123,12 +122,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-			//start ADC
-			HAL_ADC_Start_IT(&hadc1);
-//			//start timer 3 that is sampling trigger for ADC	
-//			HAL_TIM_Base_Start(&htim3);
-//			//start timer 3 that counts 1 minute
-//			HAL_TIM_Base_Start_IT(&htim2);
+	//start ADC
+	HAL_ADC_Start_IT(&hadc1);
 
   while (1)
   {
@@ -382,17 +377,22 @@ static void MX_GPIO_Init(void)
 // called when ADC conversion is complete
 ////////////////////////////////////////
 int detectEdge(int thisEdge){
+	// check that slope is increasing and value is greater than threshold
 	if (thisEdge > maxThreshold && thisEdge > lastEdge2 && lastEdge2 > lastEdge3 && lastEdge3 > lastEdge4){
 		int currTime = __HAL_TIM_GET_COUNTER(& htim2);
+		// check that time between 2 peaks is greater than min RR interval
 		if((currTime - lastPeekTime) >= minRR){
+			// first peak not recorded
 			if (time1 == 0){
 				time1 = currTime;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
 			}
+			// check that time between 2 peaks is greater than max RR interval to reset peak
 			else if ((currTime - time1) > maxRR){
 				time1 = currTime;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
 			}
+			// second peak not recorded
 			else if (time2 == 0){
 				time2 = currTime;
 				BPMcalc = 1;				
@@ -416,9 +416,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	ADCValue = HAL_ADC_GetValue(&hadc1);
 	
 	if (BPMcalc == 0){
+		//leave out first 12 seconds as ECG signals are noisy at beginning due to posture
 		if (__HAL_TIM_GET_COUNTER(&htim2) >= 12000){
 			detectEdge(ADCValue);
 		}
+		// buffering last 3 edges
 		lastEdge4 = lastEdge3;
 		lastEdge3 = lastEdge2;
 		lastEdge2 = ADCValue;
@@ -448,6 +450,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			time2 = 0;
 			lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 
+			// set counters of timers to 0
 			__HAL_TIM_SET_COUNTER(&htim2, 0);
 			__HAL_TIM_SET_COUNTER(&htim3, 0);
 			//start timer 3 that is sampling trigger for ADC	
@@ -476,7 +479,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			f = atoi(temp);
 			//compute the time
 			int time = 1000.0 / f;
-
+			
+			// set counters of timers to 0
 			__HAL_TIM_SET_COUNTER(&htim2, 0);
 			__HAL_TIM_SET_COUNTER(&htim3, 0);
 			//change the value of period register to time
