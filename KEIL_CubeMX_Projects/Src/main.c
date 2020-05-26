@@ -79,7 +79,7 @@ int time2 = 0;
 int BPMcalc = 0;
 #define minRR 600
 #define maxRR 1200
-#define maxThreshold 2000
+#define maxThreshold 3800
 
 int lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 int detectEdge(int thisEdge);
@@ -447,7 +447,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 //			}
 		}
 		//lastTime = __HAL_TIM_GET_COUNTER(&htim2);
-		lastEdge4 = 0;
+		lastEdge4 = lastEdge3;
 		lastEdge3 = lastEdge2;
 		lastEdge2 = ADCValue;
 	}
