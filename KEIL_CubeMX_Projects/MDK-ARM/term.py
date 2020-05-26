@@ -29,10 +29,13 @@ class producerThread (threading.Thread):
         while (1):
             try:
                 command = input()
-                if (command == "start"):
-                    x = list()
-                    y = list()
-                    off = 1
+                x = list()
+                y = list()
+                off = 1
+                # if (command == "start"):
+                #     x = list()
+                #     y = list()
+                #     off = 1
 
                 while (len(command) < 6):
                     command += 't'
@@ -68,4 +71,3 @@ while True:
         plt.show()
         plt.pause(0.0000001)
     
-

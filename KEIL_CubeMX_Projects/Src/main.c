@@ -71,21 +71,7 @@ volatile uint16_t adc_buffer[1] = {0};
 uint16_t ADCValue;
 #define COMMAND_SIZE 6
 char command [COMMAND_SIZE];
-//int ECG1 = 0, ECG2 = 0;
-//int numberOFSamples = 0;
-//int first = 0;
-//#define UpperThreshold 2000
-//#define LowerThreshold 1500
-//int BPMTiming = 0;
-//int BeatComplete = 0;
-//int BPM = 0;
-//int LastTime = 0;
-//int lastADC = 0;
-//int BPM;
-//int numOfPeaks;
-int lastADC = 0;
-int secondLastADC = 0;
-int lastTime = 0;
+
 int lastPeekTime = 0;
 int BPM;
 int time1 = 0;
@@ -93,7 +79,7 @@ int time2 = 0;
 int BPMcalc = 0;
 #define minRR 600
 #define maxRR 1200
-#define maxThreshold 3800
+#define maxThreshold 2000
 
 int lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 int detectEdge(int thisEdge);
@@ -137,7 +123,12 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
+			//start ADC
+			HAL_ADC_Start_IT(&hadc1);
+//			//start timer 3 that is sampling trigger for ADC	
+//			HAL_TIM_Base_Start(&htim3);
+//			//start timer 3 that counts 1 minute
+//			HAL_TIM_Base_Start_IT(&htim2);
 
   while (1)
   {
@@ -394,33 +385,18 @@ int detectEdge(int thisEdge){
 	if (thisEdge > maxThreshold && thisEdge > lastEdge2 && lastEdge2 > lastEdge3 && lastEdge3 > lastEdge4){
 		int currTime = __HAL_TIM_GET_COUNTER(& htim2);
 		if((currTime - lastPeekTime) >= minRR){
-			if (time1 == 0)
+			if (time1 == 0){
 				time1 = currTime;
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+			}
 			else if ((currTime - time1) > maxRR){
 				time1 = currTime;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-				
-//								char buffer[10];
-//						int n = sprintf (buffer, "%d", time1);
-//						buffer[n] = '\r';
-//						buffer[n+1] = '\n';
-//						for (int i = 0; i < (n+2); i++){
-//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
-//						}
 			}
 			else if (time2 == 0){
 				time2 = currTime;
 				BPMcalc = 1;				
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-
-				
-//				char buffer[10];
-//						int n = sprintf (buffer, "%d", time2);
-//						buffer[n] = '\r';
-//						buffer[n+1] = '\n';
-//						for (int i = 0; i < (n+2); i++){
-//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
-//						}
 			}
 			lastPeekTime = currTime;
 			return  1;
@@ -514,23 +490,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		//command to start collecting 1 min worth of data
 		//////////////////
 		if(command[0] == 's' && command[1] == 't' && command[2] == 'a' && command[3] == 'r' && command[4] == 't'){	
-			lastADC = 0;
 			BPMcalc = 0;
-			secondLastADC = 0;
-			lastTime = 0;
 			time1 = 0;
 			time2 = 0;
 			lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
-			HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
-			char endLine[2] = "\r\n";
-			HAL_UART_Transmit(&huart1,(uint8_t *) endLine, sizeof(endLine), 100);
-		
+
 			//start timer 3 that is sampling trigger for ADC	
 			HAL_TIM_Base_Start(&htim3);
 			//start timer 3 that counts 1 minute
 			HAL_TIM_Base_Start_IT(&htim2);
-			//start ADC
-			HAL_ADC_Start_IT(&hadc1);
+		
+			HAL_UART_Transmit(&huart1,(uint8_t *) command, sizeof(command), 100);
+			char endLine[2] = "\r\n";
+			HAL_UART_Transmit(&huart1,(uint8_t *) endLine, sizeof(endLine), 100);
 
 		} 
 		//////////////////
@@ -548,7 +520,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			int f;
 			f = atoi(temp);
 			//compute the time
-			float time = 1000.0 / f;
+			int time = 1000.0 / f;
+
 			//change the value of period register to time
 			__HAL_TIM_SET_AUTORELOAD(&htim3, time);
 			
@@ -561,15 +534,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		//////////////////
 		else if (command[0] == 'b' && command[1] == 'p' && command[2] == 'm'){
 				//compute and UART transmit BPM
-//				char buffer[9] = "reportt\r\n";
-//				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
-//				int dt = abs(ECG2 - ECG1);
-//				int bpm;
-//				if (dt != 0)
-//					bpm = (int)(60/((float)(dt)/1000));
-////					bpm = numberOFSamples * 60000 / dt;
-//				else 
-//					bpm = 0; 
 				
 //				float numberOfSquares = (time2 - time1) / 200.0;
 //			
@@ -586,9 +550,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 				for (int i = 0; i < (n+2); i++){
 					HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
 				}
-				
-//				n = sprintf (buffer, "%s", "report\r\n");
-//				HAL_UART_Transmit(&huart1,(uint8_t *) buffer, sizeof(buffer), 100);
 		} 
 		else {
 			char buffer[12] = "no command\r\n";
@@ -619,14 +580,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	
 	// 1 min elapsed for timer 2
 	if (htim->Instance == TIM2){
-		// toggle LED
-//		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-		// Stop ADC
-		HAL_ADC_Stop(&hadc1);
-		// Stop timer 2
-		HAL_TIM_Base_Stop(&htim2);
-		// Stop timer 3
-		HAL_TIM_Base_Stop(&htim3);
+		if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_CC1) != RESET){
+			// Stop timer 2
+			HAL_TIM_Base_Stop(&htim2);
+			// Stop timer 3
+			HAL_TIM_Base_Stop(&htim3);
+		}
 	}
 }
 
