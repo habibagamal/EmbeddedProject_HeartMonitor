@@ -418,58 +418,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	if (BPMcalc == 0){
 		if (__HAL_TIM_GET_COUNTER(&htim2) >= 12000){
 			detectEdge(ADCValue);
-//			int newTime = detectEdge(ADCValue);
-//			if (newTime != 0){
-//				if (time1 == 0){
-//					time1 = newTime;
-//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-//						
-//						char buffer[10];
-//						int n = sprintf (buffer, "%d", time1);
-//						buffer[n] = '\r';
-//						buffer[n+1] = '\n';
-//						for (int i = 0; i < (n+2); i++){
-//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
-//						}
-//				} else if (time2 == 0){
-//					time2 = newTime;
-//					BPMcalc = 1;
-//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-//					
-//						char buffer[10];
-//						int n = sprintf (buffer, "%d", time2);
-//						buffer[n] = '\r';
-//						buffer[n+1] = '\n';
-//						for (int i = 0; i < (n+2); i++){
-//							HAL_UART_Transmit(&huart1,(uint8_t *) &buffer[i], sizeof(buffer[i]), 10);
-//						}
-//				}
-//			}
 		}
-		//lastTime = __HAL_TIM_GET_COUNTER(&htim2);
 		lastEdge4 = lastEdge3;
 		lastEdge3 = lastEdge2;
 		lastEdge2 = ADCValue;
 	}
-	
-//	if (BPMcalc == 0){
-//		if (lastTime >= 30000){
-//			if (lastADC > 3800 && ADCValue > 3800 && secondLastADC > 3800 && lastADC < ADCValue && lastADC > secondLastADC){
-//				if (time1 == 0){
-//					time1 = lastTime;
-//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-//					}
-//				else if (time2 == 0 && ((lastTime - time1) >= 600)){
-//					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-//					time2 = lastTime;
-//					BPMcalc = 1;
-//				}
-//			}
-//		}
-//		secondLastADC = lastADC;
-//		lastADC = ADCValue;
-//		lastTime = __HAL_TIM_GET_COUNTER(& htim2);
-//	}
 	
 	//convert to string and transmit over UART
 	char buffer[10];
@@ -495,6 +448,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			time2 = 0;
 			lastEdge2 = 0, lastEdge3 = 0, lastEdge4 = 0;
 
+			__HAL_TIM_SET_COUNTER(&htim2, 0);
+			__HAL_TIM_SET_COUNTER(&htim3, 0);
 			//start timer 3 that is sampling trigger for ADC	
 			HAL_TIM_Base_Start(&htim3);
 			//start timer 3 that counts 1 minute
@@ -522,6 +477,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			//compute the time
 			int time = 1000.0 / f;
 
+			__HAL_TIM_SET_COUNTER(&htim2, 0);
+			__HAL_TIM_SET_COUNTER(&htim3, 0);
 			//change the value of period register to time
 			__HAL_TIM_SET_AUTORELOAD(&htim3, time);
 			
